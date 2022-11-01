@@ -37,6 +37,7 @@ import (
 const (
 	defaultDatabaseName = "casbin"
 	defaultTableName    = "casbin_rule"
+	pTypeColumnName     = "p_type"
 )
 
 const disableMigrateKey = "disableMigrateKey"
@@ -44,7 +45,7 @@ const customTableKey = "customTableKey"
 
 type CasbinRule struct {
 	ID    uint   `gorm:"primaryKey;autoIncrement"`
-	Ptype string `gorm:"size:100"`
+	Ptype string `gorm:"size:100;column:p_type"`
 	V0    string `gorm:"size:100"`
 	V1    string `gorm:"size:100"`
 	V2    string `gorm:"size:100"`
@@ -403,7 +404,7 @@ func (a *Adapter) createTable() error {
 	index := strings.ReplaceAll("idx_"+tableName, ".", "_")
 	hasIndex := a.db.Migrator().HasIndex(t, index)
 	if !hasIndex {
-		if err := a.db.Exec(fmt.Sprintf("CREATE UNIQUE INDEX %s ON %s (ptype,v0,v1,v2,v3,v4,v5)", index, tableName)).Error; err != nil {
+		if err := a.db.Exec(fmt.Sprintf("CREATE UNIQUE INDEX %s ON %s (%s,v0,v1,v2,v3,v4,v5)", index, tableName, pTypeColumnName)).Error; err != nil {
 			return err
 		}
 	}
@@ -512,7 +513,7 @@ func (a *Adapter) IsFiltered() bool {
 func (a *Adapter) filterQuery(db *gorm.DB, filter Filter) func(db *gorm.DB) *gorm.DB {
 	return func(db *gorm.DB) *gorm.DB {
 		if len(filter.Ptype) > 0 {
-			db = db.Where("ptype in (?)", filter.Ptype)
+			db = db.Where(fmt.Sprintf("%s in (?)", pTypeColumnName), filter.Ptype)
 		}
 		if len(filter.V0) > 0 {
 			db = db.Where("v0 in (?)", filter.V0)
@@ -717,7 +718,7 @@ func checkQueryField(fieldValues []string) error {
 func (a *Adapter) rawDelete(db *gorm.DB, line CasbinRule) error {
 	queryArgs := []interface{}{line.Ptype}
 
-	queryStr := "ptype = ?"
+	queryStr := fmt.Sprintf("%s = ?", pTypeColumnName)
 	if line.V0 != "" {
 		queryStr += " and v0 = ?"
 		queryArgs = append(queryArgs, line.V0)
@@ -750,7 +751,7 @@ func (a *Adapter) rawDelete(db *gorm.DB, line CasbinRule) error {
 func appendWhere(line CasbinRule) (string, []interface{}) {
 	queryArgs := []interface{}{line.Ptype}
 
-	queryStr := "ptype = ?"
+	queryStr := fmt.Sprintf("%s = ?", pTypeColumnName)
 	if line.V0 != "" {
 		queryStr += " and v0 = ?"
 		queryArgs = append(queryArgs, line.V0)
@@ -891,7 +892,7 @@ func (a *Adapter) Preview(rules *[]CasbinRule, model model.Model) error {
 func (c *CasbinRule) queryString() (interface{}, []interface{}) {
 	queryArgs := []interface{}{c.Ptype}
 
-	queryStr := "ptype = ?"
+	queryStr := fmt.Sprintf("%s = ?", pTypeColumnName)
 	if c.V0 != "" {
 		queryStr += " and v0 = ?"
 		queryArgs = append(queryArgs, c.V0)
